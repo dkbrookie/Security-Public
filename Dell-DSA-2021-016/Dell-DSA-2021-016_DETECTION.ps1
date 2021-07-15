@@ -154,7 +154,7 @@ If ($minimumSafeBiosVersion -like "*A0*") {
 
 # If current bios version is smaller than minimum safe BIOS version
 If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
-    $outputLog += "!Failed: This machine is an affected model and does not meet the minimum BIOS version requirement. This machine is vulnerable and needs to be updated. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher"
+    $outputLog += "!Failed: This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher"
 } Else {
     $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
 }
