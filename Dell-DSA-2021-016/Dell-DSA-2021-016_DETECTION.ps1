@@ -131,7 +131,7 @@ $affectedModels = @{
     "XPS 17 9710" = "1.1.3";
 }
 
-[array]$outputLog
+[array]$outputLog = @()
 
 $currentBiosVersion = (Get-WmiObject -ClassName Win32_BIOS).SMBIOSBIOSVersion
 $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
