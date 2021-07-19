@@ -131,14 +131,14 @@ $affectedModels = @{
     "XPS 17 9710" = "1.1.3";
 }
 
-[array]$outputLog
+[array]$outputLog = @()
 
 $currentBiosVersion = (Get-WmiObject -ClassName Win32_BIOS).SMBIOSBIOSVersion
 $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
 
 If (!$affectedModels.Contains($modelName)) {
     $outputLog += "!Warning: Exiting Script. This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-016 vulnerability. Check your search. The model is $modelName. If there is any question, please check the list on Dell's site to confirm. https://www.dell.com/support/kbdoc/en-us/000188682/dsa-2021-106-dell-client-platform-security-update-for-multiple-vulnerabilities-in-the-supportassist-biosconnect-feature-and-https-boot-feature"
-    Write-Output "outputLog=$outputLog"
+    Write-Output "protected=1|outputLog=$outputLog"
     Return
 }
 
@@ -148,15 +148,17 @@ $minimumSafeBiosVersion = $affectedModels[$modelName]
 # there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of the affected models.
 If ($minimumSafeBiosVersion -like "*A0*") {
     $outputLog += "!Failed: Exiting Script. This model is not currently supported by the script. This machine needs to be updated manually, or the script needs to be updated to support it."
-    Write-Output "outputLog=$outputLog"
+    Write-Output "protected=0|outputLog=$outputLog"
     Return
 }
 
 # If current bios version is smaller than minimum safe BIOS version
 If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     $outputLog += "!Failed: This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher"
+    $protected = 0
 } Else {
     $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
+    $protected = 1
 }
 
-Write-Output "outputLog=$outputLog"
+Write-Output "protected=$protected|outputLog=$outputLog"
