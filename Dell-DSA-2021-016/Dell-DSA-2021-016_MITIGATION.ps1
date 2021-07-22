@@ -1,3 +1,6 @@
+$ltPath = "$ENV:windir\LTSvc"
+$patchDir = "$ltPath\security\DSA-2021-106"
+
 # Affected models and minimum BIOS versions to be considered safe. Anything lower is vulnerable.
 $affectedModels = @{
     "Alienware m15 R6" = "1.3.3";
@@ -154,11 +157,66 @@ If ($minimumSafeBiosVersion -like "*A0*") {
 
 # If current bios version is smaller than minimum safe BIOS version
 If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
-    $outputLog += "!Failed: This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher"
+    $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
     $protected = 0
+
+    $outputLog += "Downloading Dell Command Update."
+
+    $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
+    $patchPath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
+
+    Try {
+        [Net.ServicePointManager]::SecurityProtocol = [Enum]::ToObject([Net.SecurityProtocolType], 3072)
+        (New-Object System.Net.WebClient).DownloadFile($url, $patchPath)
+    } Catch {
+        # Couldn't download. Exit early.
+        $outputLog += "There was an error downloading the patch from $url -> $Error"
+        Return $outputLog -join "`n"
+    }
+
+    # Newly downloaded, so check hash
+    $fileHash = (Get-FileHash -Path $patchPath -Algorithm 'SHA1').Hash
+
+    If ('9490b408992b25e4f3fff0042fdf82cdf7765584' -eq $fileHash) {
+        $outputLog += "Dell Command Update downloaded successfully. Hash check succeeded after download."
+    } Else {
+        # File exists, but hash does not match. Delete file. And exit early.
+        Remove-Item -Path $patchPath -Force
+        $outputLog += "!Failed: Dell Command Update installation failed. The installation file was not successfully downloaded."
+        Return $outputLog -join "`n"
+    }
+
+    $msiDir = "$patchDir\MSI"
+    $logDir = "$msiDir\logs"
+
+    $timestamp = Get-Date -Format 'MMddyy-hh:mm:ss'
+
+    # Extract an MSI from the executable
+    & $patchPath @('/passthrough', '/S', '/v/qn', "/b$msiDir")
+
+    # Don't know if uninstall first is necessary yet
+    # Try {
+    #     # uninstall command
+    #     & "$patchDir\MSI\DellCommandUpdateApp.msi" $('/quiet', '/uninstall', 'norestart', "/log $logDir\uninstall-$timestamp.log")
+    # } Catch {
+    #     # No big deal if it doesn't uninstall.. Probably doesn't exist?
+    #     $outputLog += "Error"
+    # }
+
+    Try {
+        # install command
+        & "$patchDir\MSI\DellCommandUpdateApp.msi" $('/quiet', 'norestart', "/log $logDir\install-$timestamp.log")
+    } Catch {
+        $outputLog += "Error installing DCU! Error Output: $Error"
+    }
+
+    # Is it possible we need restarts here? Should we approach this like multiple restarts need to take place?
+    # Needed anyway because of BIOS update so maybe that's ok.. Don't know until we start testing on Dells
+
+    # update bios
 } Else {
-    $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
     $protected = 1
+    $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
 }
 
 Write-Output "protected=$protected|outputLog=$outputLog"
