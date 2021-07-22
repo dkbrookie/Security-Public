@@ -139,38 +139,41 @@ $affectedModels = @{
 $currentBiosVersion = (Get-WmiObject -ClassName Win32_BIOS).SMBIOSBIOSVersion
 $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
 
-If (!$affectedModels.Contains($modelName)) {
-    $outputLog += "!Warning: Exiting Script. This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-016 vulnerability. Check your search. The model is $modelName. If there is any question, please check the list on Dell's site to confirm. https://www.dell.com/support/kbdoc/en-us/000188682/dsa-2021-106-dell-client-platform-security-update-for-multiple-vulnerabilities-in-the-supportassist-biosconnect-feature-and-https-boot-feature"
-    Write-Output "protected=1|outputLog=$outputLog"
-    Return
-}
+# If (!$affectedModels.Contains($modelName)) {
+#     $outputLog += "!Warning: Exiting Script. This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-016 vulnerability. Check your search. The model is $modelName. If there is any question, please check the list on Dell's site to confirm. https://www.dell.com/support/kbdoc/en-us/000188682/dsa-2021-106-dell-client-platform-security-update-for-multiple-vulnerabilities-in-the-supportassist-biosconnect-feature-and-https-boot-feature"
+#     Write-Output "protected=1|outputLog=$outputLog"
+#     Return
+# }
 
-$minimumSafeBiosVersion = $affectedModels[$modelName]
+# $minimumSafeBiosVersion = $affectedModels[$modelName]
 
-# Don't know how to compare these models with A0 in the version yet. Powershell doesn't compare these properly, though I assume
-# there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of the affected models.
-If ($minimumSafeBiosVersion -like "*A0*") {
-    $outputLog += "!Failed: Exiting Script. This model is not currently supported by the script. This machine needs to be updated manually, or the script needs to be updated to support it."
-    Write-Output "protected=0|outputLog=$outputLog"
-    Return
-}
+# # Don't know how to compare these models with A0 in the version yet. Powershell doesn't compare these properly, though I assume
+# # there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of the affected models.
+# If ($minimumSafeBiosVersion -like "*A0*") {
+#     $outputLog += "!Failed: Exiting Script. This model is not currently supported by the script. This machine needs to be updated manually, or the script needs to be updated to support it."
+#     Write-Output "protected=0|outputLog=$outputLog"
+#     Return
+# }
 
 # If current bios version is smaller than minimum safe BIOS version
-If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
-    $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
-    $protected = 0
+# If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
+    # $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
+    # $protected = 0
 
-    $outputLog += "Downloading Dell Command Update."
+    # $outputLog += "Downloading Dell Command Update."
 
-    $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
+    $url = 'https://dl.dell.com/FOLDER07414743M/1/Dell-Command-Update-Application_XM3K1_WIN_4.2.1_A00.EXE'
     $patchPath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
 
+    If (!(Test-Path -Path $patchDir)) {
+        New-Item -Path $patchDir -Force
+    }
+
     Try {
-        [Net.ServicePointManager]::SecurityProtocol = [Enum]::ToObject([Net.SecurityProtocolType], 3072)
-        (New-Object System.Net.WebClient).DownloadFile($url, $patchPath)
+        Start-BitsTransfer -Source $url -Destination $patchPath
     } Catch {
         # Couldn't download. Exit early.
-        $outputLog += "There was an error downloading the patch from $url -> $Error"
+        $outputLog += "There was an error downloading the patch from $url"
         Return $outputLog -join "`n"
     }
 
@@ -214,9 +217,9 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     # Needed anyway because of BIOS update so maybe that's ok.. Don't know until we start testing on Dells
 
     # update bios
-} Else {
-    $protected = 1
-    $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
-}
+# } Else {
+#     $protected = 1
+#     $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
+# }
 
 Write-Output "protected=$protected|outputLog=$outputLog"
