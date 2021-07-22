@@ -166,7 +166,7 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
     $patchPath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
 
     If (!(Test-Path -Path $patchDir)) {
-        New-Item -Path $patchDir -Force
+        New-Item -Path $patchDir -ItemType Container -Force
     }
 
     Try {
