@@ -1,6 +1,13 @@
 $ltPath = "$ENV:windir\LTSvc"
 $patchDir = "$ltPath\security\DSA-2021-106"
 
+Function New-ErrorMessage (
+    [System.Object]$err,
+    [string]$msg
+) {
+    Return "$msg. Error Output: $err.Exception.ItemName - $err.Exception.Message"
+}
+
 # Affected models and minimum BIOS versions to be considered safe. Anything lower is vulnerable.
 $affectedModels = @{
     "Alienware m15 R6" = "1.3.3";
@@ -173,8 +180,9 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
         Start-BitsTransfer -Source $url -Destination $patchPath
     } Catch {
         # Couldn't download. Exit early.
-        $outputLog += "There was an error downloading the patch from $url"
-        Return $outputLog -join "`n"
+        $outputLog += New-ErrorMessage $_ "There was an error downloading the patch from $url"
+        Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
+        Return
     }
 
     # Newly downloaded, so check hash
@@ -186,16 +194,25 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
         # File exists, but hash does not match. Delete file. And exit early.
         Remove-Item -Path $patchPath -Force
         $outputLog += "!Failed: Dell Command Update installation failed. The installation file was not successfully downloaded."
-        Return $outputLog -join "`n"
+        Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
+        Return
     }
 
     $msiDir = "$patchDir\MSI"
     $logDir = "$msiDir\logs"
 
-    $timestamp = Get-Date -Format 'MMddyy-hh:mm:ss'
+    $timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
 
-    # Extract an MSI from the executable
-    & $patchPath @('/passthrough', '/S', '/v/qn', "/b$msiDir")
+    Try {
+        # Extract an MSI from the executable
+        & $patchPath @('/passthrough', '/S', '/v/qn', "/b$msiDir")
+        $outputLog += "Extracted MSI."
+    } Catch {
+        # Can't use MSI, exit early
+        $outputLog += New-ErrorMessage $_ "MSI extraction from EXE was not successful!"
+        Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
+        Return
+    }
 
     # Don't know if uninstall first is necessary yet
     # Try {
@@ -207,10 +224,26 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
     # }
 
     Try {
+        $outputLog += "Installing Dell Command Update."
+
         # install command
-        & "$patchDir\MSI\DellCommandUpdateApp.msi" @('/quiet', 'norestart', "/log $logDir\install-$timestamp.log")
+        $file = Get-Item "$patchDir\MSI\DellCommandUpdateApp.msi"
+
+        $logFile = '{0}-{1}.log' -f $file.fullname,$DataStamp
+        $MSIArguments = @(
+            "/i"
+            ('"{0}"' -f $file.fullname)
+            "/qn"
+            "/norestart"
+            "/L*v"
+            $logFile
+        )
+        Start-Process "msiexec.exe" -ArgumentList $MSIArguments -Wait -NoNewWindow
+
+        $outputLog += "Installation finished."
     } Catch {
-        $outputLog += "Error installing DCU! Error Output: $Error"
+        $outputLog += New-ErrorMessage $_ "Error installing DCU!"
+        Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
     }
 
     # Is it possible we need restarts here? Should we approach this like multiple restarts need to take place?
