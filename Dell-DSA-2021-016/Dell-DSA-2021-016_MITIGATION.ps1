@@ -162,7 +162,7 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
 
     # $outputLog += "Downloading Dell Command Update."
 
-    $url = 'https://dl.dell.com/FOLDER07414743M/1/Dell-Command-Update-Application_XM3K1_WIN_4.2.1_A00.EXE'
+    $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
     $patchPath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
 
     If (!(Test-Path -Path $patchDir)) {
@@ -180,7 +180,7 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
     # Newly downloaded, so check hash
     $fileHash = (Get-FileHash -Path $patchPath -Algorithm 'SHA1').Hash
 
-    If ('a2f3d088f3b45744c5d2f9253ada70115aea61eb' -eq $fileHash) {
+    If ('9490b408992b25e4f3fff0042fdf82cdf7765584' -eq $fileHash) {
         $outputLog += "Dell Command Update downloaded successfully. Hash check succeeded after download."
     } Else {
         # File exists, but hash does not match. Delete file. And exit early.
