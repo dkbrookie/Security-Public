@@ -208,7 +208,7 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
 
     Try {
         # install command
-        & "$patchDir\MSI\DellCommandUpdateApp.msi" $('/quiet', 'norestart', "/log $logDir\install-$timestamp.log")
+        & "$patchDir\MSI\DellCommandUpdateApp.msi" @('/quiet', 'norestart', "/log $logDir\install-$timestamp.log")
     } Catch {
         $outputLog += "Error installing DCU! Error Output: $Error"
     }
