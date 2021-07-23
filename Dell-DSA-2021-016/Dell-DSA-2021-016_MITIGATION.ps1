@@ -244,6 +244,7 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
     } Catch {
         $outputLog += New-ErrorMessage $_ "Error installing DCU!"
         Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
+        Return
     }
 
     # Is it possible we need restarts here? Should we approach this like multiple restarts need to take place?
