@@ -1,13 +1,3 @@
-$ltPath = "$ENV:windir\LTSvc"
-$patchDir = "$ltPath\security\DSA-2021-106"
-
-Function New-ErrorMessage (
-    [System.Object]$err,
-    [string]$msg
-) {
-    Return "$msg. Error Output: $err.Exception.ItemName - $err.Exception.Message"
-}
-
 # Affected models and minimum BIOS versions to be considered safe. Anything lower is vulnerable.
 $affectedModels = @{
     "Alienware m15 R6" = "1.3.3";
@@ -143,37 +133,54 @@ $affectedModels = @{
 
 [array]$outputLog = @()
 
+
 $currentBiosVersion = (Get-WmiObject -ClassName Win32_BIOS).SMBIOSBIOSVersion
 $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
 
-# If (!$affectedModels.Contains($modelName)) {
-#     $outputLog += "!Warning: Exiting Script. This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-016 vulnerability. Check your search. The model is $modelName. If there is any question, please check the list on Dell's site to confirm. https://www.dell.com/support/kbdoc/en-us/000188682/dsa-2021-106-dell-client-platform-security-update-for-multiple-vulnerabilities-in-the-supportassist-biosconnect-feature-and-https-boot-feature"
-#     Write-Output "protected=1|outputLog=$outputLog"
-#     Return
-# }
+Function New-ErrorMessage (
+    [System.Object]$err,
+    [string]$msg
+    ) {
+        Return "$msg. Error Output: $err.Exception.ItemName - $err.Exception.Message"
+    }
 
-# $minimumSafeBiosVersion = $affectedModels[$modelName]
 
-# # Don't know how to compare these models with A0 in the version yet. Powershell doesn't compare these properly, though I assume
-# # there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of the affected models.
-# If ($minimumSafeBiosVersion -like "*A0*") {
-#     $outputLog += "!Failed: Exiting Script. This model is not currently supported by the script. This machine needs to be updated manually, or the script needs to be updated to support it."
-#     Write-Output "protected=0|outputLog=$outputLog"
-#     Return
-# }
 
-# If current bios version is smaller than minimum safe BIOS version
-# If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
-    # $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
-    # $protected = 0
+    # If (!$affectedModels.Contains($modelName)) {
+        #     $outputLog += "!Warning: Exiting Script. This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-016 vulnerability. Check your search. The model is $modelName. If there is any question, please check the list on Dell's site to confirm. https://www.dell.com/support/kbdoc/en-us/000188682/dsa-2021-106-dell-client-platform-security-update-for-multiple-vulnerabilities-in-the-supportassist-biosconnect-feature-and-https-boot-feature"
+        #     Write-Output "protected=1|outputLog=$outputLog"
+        #     Return
+        # }
 
-    # $outputLog += "Downloading Dell Command Update."
+        # $minimumSafeBiosVersion = $affectedModels[$modelName]
+
+        # # Don't know how to compare these models with A0 in the version yet. Powershell doesn't compare these properly, though I assume
+        # # there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of the affected models.
+        # If ($minimumSafeBiosVersion -like "*A0*") {
+            #     $outputLog += "!Failed: Exiting Script. This model is not currently supported by the script. This machine needs to be updated manually, or the script needs to be updated to support it."
+            #     Write-Output "protected=0|outputLog=$outputLog"
+            #     Return
+            # }
+
+            # If current bios version is smaller than minimum safe BIOS version
+            # If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
+                # $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
+                # $protected = 0
+
+                # $outputLog += "Downloading Dell Command Update."
 
     $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
+    $ltPath = "$ENV:windir\LTSvc"
+    $patchDir = "$ltPath\security\DSA-2021-106"
     $patchPath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
+    $logDir = "$patchDir\logs"
 
     If (!(Test-Path -Path $patchDir)) {
-        New-Item -Path $patchDir -ItemType Container -Force
+        New-Item -Path $patchDir -ItemType Container -Force | Out-Null
+    }
+
+    If (!(Test-Path -Path $logDir)) {
+        New-Item -Path $logDir -ItemType Container -Force | Out-Null
     }
 
     Try {
@@ -197,9 +204,6 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
         Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
         Return
     }
-
-    $msiDir = "$patchDir\MSI"
-    $logDir = "$msiDir\logs"
 
     $timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
 
@@ -226,17 +230,17 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
     Try {
         $outputLog += "Installing Dell Command Update."
 
-        # install command
+        # install dell command update
         $file = Get-Item "$patchDir\MSI\DellCommandUpdateApp.msi"
 
-        $logFile = '{0}-{1}.log' -f $file.fullname,$DataStamp
+        $logFile = '{0}-{1}.log' -f 'DellCommandUpdateInstallation', $timestamp
         $MSIArguments = @(
             "/i"
             ('"{0}"' -f $file.fullname)
             "/qn"
             "/norestart"
             "/L*v"
-            $logFile
+            "$logDir\$logFile"
         )
         Start-Process "msiexec.exe" -ArgumentList $MSIArguments -Wait -NoNewWindow
 
@@ -250,10 +254,21 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
     # Is it possible we need restarts here? Should we approach this like multiple restarts need to take place?
     # Needed anyway because of BIOS update so maybe that's ok.. Don't know until we start testing on Dells
 
+    Try {
+        $outputLog += "Using Dell Command Update to update BIOS now."
+        $logFile = 'DellCommandUpdateBIOSUpgrade_{0}.log' -f $timestamp
+
+        & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=$logDir\$logFile")
+        $outputLog += "Done updating BIOS. You should reboot now."
+    } Catch {
+        $outputLog += New-ErrorMessage $_ "Could not install BIOS update. DCU-CLI threw an error."
+        Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
+        Return
+    }
     # update bios
 # } Else {
 #     $protected = 1
 #     $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
 # }
 
-Write-Output "protected=$protected|outputLog=$outputLog"
+Write-Output "protected=$protected|outputLog=$($outputLog -join '`n')"
