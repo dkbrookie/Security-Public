@@ -233,7 +233,7 @@ Function New-ErrorMessage (
         # install dell command update
         $file = Get-Item "$patchDir\MSI\DellCommandUpdateApp.msi"
 
-        $logFile = '{0}-{1}.log' -f 'DellCommandUpdateInstallation', $timestamp
+        $logFile = "DellCommandUpdateInstallation-$timestamp.log"
         $MSIArguments = @(
             "/i"
             ('"{0}"' -f $file.fullname)
@@ -256,13 +256,15 @@ Function New-ErrorMessage (
 
     Try {
         $outputLog += "Using Dell Command Update to update BIOS now."
-        $logFile = 'DellCommandUpdateBIOSUpgrade_{0}.log' -f $timestamp
+        $logFile = "DellCommandUpdateBIOSUpgrade_$timestamp.log"
 
-        & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=$logDir\$logFile")
+        & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$logFile")
+
         $outputLog += "Done updating BIOS. You should reboot now."
     } Catch {
         $outputLog += New-ErrorMessage $_ "Could not install BIOS update. DCU-CLI threw an error."
         Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
+        Move-Item -Path "C:\Temp\$logFile" -Destination "$logDir\$logFile"
         Return
     }
     # update bios
@@ -271,4 +273,5 @@ Function New-ErrorMessage (
 #     $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
 # }
 
+Move-Item -Path "C:\Temp\$logFile" -Destination "$logDir\$logFile"
 Write-Output "protected=$protected|outputLog=$($outputLog -join '`n')"
