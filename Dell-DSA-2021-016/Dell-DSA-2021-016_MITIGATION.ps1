@@ -140,34 +140,33 @@ $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
 Function New-ErrorMessage (
     [System.Object]$err,
     [string]$msg
-    ) {
-        Return "$msg. Error Output: $err.Exception.ItemName - $err.Exception.Message"
-    }
+) {
+    Return "$msg. Error Output: $err.Exception.ItemName - $err.Exception.Message"
+}
 
 
+If (!$affectedModels.Contains($modelName)) {
+    $outputLog += "!Warning: Exiting Script. This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-016 vulnerability. Check your search. The model is $modelName. If there is any question, please check the list on Dell's site to confirm. https://www.dell.com/support/kbdoc/en-us/000188682/dsa-2021-106-dell-client-platform-security-update-for-multiple-vulnerabilities-in-the-supportassist-biosconnect-feature-and-https-boot-feature"
+    Write-Output "protected=1|outputLog=$outputLog"
+    Return
+}
 
-    # If (!$affectedModels.Contains($modelName)) {
-        #     $outputLog += "!Warning: Exiting Script. This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-016 vulnerability. Check your search. The model is $modelName. If there is any question, please check the list on Dell's site to confirm. https://www.dell.com/support/kbdoc/en-us/000188682/dsa-2021-106-dell-client-platform-security-update-for-multiple-vulnerabilities-in-the-supportassist-biosconnect-feature-and-https-boot-feature"
-        #     Write-Output "protected=1|outputLog=$outputLog"
-        #     Return
-        # }
+$minimumSafeBiosVersion = $affectedModels[$modelName]
 
-        # $minimumSafeBiosVersion = $affectedModels[$modelName]
+# Don't know how to compare these models with A0 in the version yet. Powershell doesn't compare these properly, though I assume
+# there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of the affected models.
+If ($minimumSafeBiosVersion -like "*A0*") {
+    $outputLog += "!Failed: Exiting Script. This model is not currently supported by the script. This machine needs to be updated manually, or the script needs to be updated to support it."
+    Write-Output "protected=0|outputLog=$outputLog"
+    Return
+}
 
-        # # Don't know how to compare these models with A0 in the version yet. Powershell doesn't compare these properly, though I assume
-        # # there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of the affected models.
-        # If ($minimumSafeBiosVersion -like "*A0*") {
-            #     $outputLog += "!Failed: Exiting Script. This model is not currently supported by the script. This machine needs to be updated manually, or the script needs to be updated to support it."
-            #     Write-Output "protected=0|outputLog=$outputLog"
-            #     Return
-            # }
+# If current bios version is smaller than minimum safe BIOS version
+If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
+    $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
+    $protected = 0
 
-            # If current bios version is smaller than minimum safe BIOS version
-            # If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
-                # $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
-                # $protected = 0
-
-                # $outputLog += "Downloading Dell Command Update."
+    $outputLog += "Downloading Dell Command Update."
 
     $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
     $ltPath = "$ENV:windir\LTSvc"
@@ -218,15 +217,6 @@ Function New-ErrorMessage (
         Return
     }
 
-    # Don't know if uninstall first is necessary yet
-    # Try {
-    #     # uninstall command
-    #     & "$patchDir\MSI\DellCommandUpdateApp.msi" $('/quiet', '/uninstall', 'norestart', "/log $logDir\uninstall-$timestamp.log")
-    # } Catch {
-    #     # No big deal if it doesn't uninstall.. Probably doesn't exist?
-    #     $outputLog += "Error"
-    # }
-
     Try {
         $outputLog += "Installing Dell Command Update."
 
@@ -252,7 +242,7 @@ Function New-ErrorMessage (
     }
 
     # Is it possible we need restarts here? Should we approach this like multiple restarts need to take place?
-    # Needed anyway because of BIOS update so maybe that's ok.. Don't know until we start testing on Dells
+    # Needed anyway because of BIOS update so maybe that's ok..
 
     Try {
         $outputLog += "Using Dell Command Update to update BIOS now."
@@ -267,11 +257,13 @@ Function New-ErrorMessage (
         Move-Item -Path "C:\Temp\$logFile" -Destination "$logDir\$logFile"
         Return
     }
-    # update bios
-# } Else {
-#     $protected = 1
-#     $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
-# }
+} Else {
+    $protected = 1
+    $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
+}
 
-Move-Item -Path "C:\Temp\$logFile" -Destination "$logDir\$logFile"
+If (Test-Path -Path "C:\Temp\$logFile") {
+    Move-Item -Path "C:\Temp\$logFile" -Destination "$logDir\$logFile"
+}
+
 Write-Output "protected=$protected|outputLog=$($outputLog -join '`n')"
