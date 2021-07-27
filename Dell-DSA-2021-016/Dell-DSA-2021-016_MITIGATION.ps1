@@ -166,7 +166,6 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
     $protected = 0
 
-    $outputLog += "Downloading Dell Command Update."
 
     $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
     $ltPath = "$ENV:windir\LTSvc"
@@ -185,7 +184,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
 
     # If the BIOS has already been updated but is pending reboot, we don't want to run the remediation again
     If (Test-Path -Path $pendingRebootPath) {
-        $outputLog += "!Warning: This BIOS has already been updated, but the machine is pending reboot."
+        $outputLog += "!Warning: This BIOS has already been updated, but the machine is pending reboot. Not updating again."
         Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
         Return
     }
@@ -194,6 +193,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
 
     # Download DCU
     Try {
+        $outputLog += "Downloading Dell Command Update."
         Start-BitsTransfer -Source $url -Destination $patchPath
     } Catch {
         # Couldn't download. Exit early.
