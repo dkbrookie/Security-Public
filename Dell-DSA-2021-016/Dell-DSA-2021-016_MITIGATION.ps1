@@ -195,6 +195,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     If ($hasBattery -and $batteryInUse) {
         $outputLog += "!Failed: This is a laptop and it's on battery power. It would be unwise to update BIOS while on battery power."
         Write-Output "protected=0|pendingReboot=0|outputLog=($outputLog -join '`n')"
+        Return
     }
 
     <# ------------------------------------------------ Start Remediation ----------------------------------------------------- #>
