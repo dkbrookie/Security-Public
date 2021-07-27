@@ -133,7 +133,6 @@ $affectedModels = @{
 
 [array]$outputLog = @()
 
-
 $currentBiosVersion = (Get-WmiObject -ClassName Win32_BIOS).SMBIOSBIOSVersion
 $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
 
@@ -266,6 +265,20 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     }
 
     # It does not appear that reboot is necessary between DCU installation and BIOS update.. That could change...
+    Try {
+        $member = @'[DllImport("user32.dll")]public static extern bool BlockInput(bool fBlockIt);'@
+        $userInput = Add-Type -MemberDefinition $member -Name UserInput -Namespace UserInput -PassThru
+        $userInput::BlockInput($True)
+    } Catch {
+        $outputLog += New-ErrorMessage $_ "Could not disable user input. Not proceeding with BIOS update."
+        Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
+        Return
+    }
+
+    # Call in user messaging function
+    (New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/dkbrookie/PowershellFunctions/master/Function.OK-Popup.ps1') | Invoke-Expression
+
+    OK-Popup -Message "Message From DKBInnovative:`nDO NOT POWER OFF YOUR PC.`nYour PC is applying a very important update right now.`nYou will regain control of your mouse and keyboard momentarily, when the update has finished."
 
     # Update BIOS using DCU
     Try {
@@ -285,8 +298,9 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     } Catch {
         $outputLog += New-ErrorMessage $_ "Could not install BIOS update. DCU-CLI threw an error."
         Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
-        # Don't need to exit early unless something else goes under here...
     }
+
+    $userInput::BlockInput($False)
 } Else {
     $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
     Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
