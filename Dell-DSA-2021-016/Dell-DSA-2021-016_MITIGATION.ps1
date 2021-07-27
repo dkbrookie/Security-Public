@@ -141,23 +141,23 @@ Function New-ErrorMessage (
     [System.Object]$err,
     [string]$msg
 ) {
-    Return "$msg. Error Output: $err.Exception.ItemName - $err.Exception.Message"
-}
-
-
-If (!$affectedModels.Contains($modelName)) {
-    $outputLog += "!Warning: Exiting Script. This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-016 vulnerability. Check your search. The model is $modelName. If there is any question, please check the list on Dell's site to confirm. https://www.dell.com/support/kbdoc/en-us/000188682/dsa-2021-106-dell-client-platform-security-update-for-multiple-vulnerabilities-in-the-supportassist-biosconnect-feature-and-https-boot-feature"
-    Write-Output "protected=1|outputLog=$outputLog"
-    Return
+    Return "!Failed: $msg. Error Output: $err.Exception.ItemName - $err.Exception.Message"
 }
 
 $minimumSafeBiosVersion = $affectedModels[$modelName]
+
+# When model is not in affected models list, either search is targeting wrong machine, or affected models list has a typo
+If (!$affectedModels.Contains($modelName)) {
+    $outputLog += "!Warning: This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-106 vulnerability. Check your search. The model is $modelName, the current BIOS is $currentBiosVersion and the min safe is $minimumSafeBiosVersion"
+    Write-Output "protected=1|pendingReboot=0|outputLog=$outputLog"
+    Return
+}
 
 # Don't know how to compare these models with A0 in the version yet. Powershell doesn't compare these properly, though I assume
 # there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of the affected models.
 If ($minimumSafeBiosVersion -like "*A0*") {
     $outputLog += "!Failed: Exiting Script. This model is not currently supported by the script. This machine needs to be updated manually, or the script needs to be updated to support it."
-    Write-Output "protected=0|outputLog=$outputLog"
+    Write-Output "protected=0|pendingReboot=0|outputLog=$outputLog"
     Return
 }
 
@@ -173,6 +173,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     $patchDir = "$ltPath\security\DSA-2021-106"
     $patchPath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
     $logDir = "$patchDir\logs"
+    $pendingRebootPath = "$patchDir\pendingreboot.txt"
 
     If (!(Test-Path -Path $patchDir)) {
         New-Item -Path $patchDir -ItemType Container -Force | Out-Null
@@ -182,12 +183,22 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
         New-Item -Path $logDir -ItemType Container -Force | Out-Null
     }
 
+    # If the BIOS has already been updated but is pending reboot, we don't want to run the remediation again
+    If (Test-Path -Path $pendingRebootPath) {
+        $outputLog += "!Warning: This BIOS has already been updated, but the machine is pending reboot."
+        Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
+        Return
+    }
+
+    <# ------------------------------------------------ Start Remediation ----------------------------------------------------- #>
+
+    # Download DCU
     Try {
         Start-BitsTransfer -Source $url -Destination $patchPath
     } Catch {
         # Couldn't download. Exit early.
-        $outputLog += New-ErrorMessage $_ "There was an error downloading the patch from $url"
-        Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
+        $outputLog += New-ErrorMessage $_ "There was an error downloading DCU"
+        Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
         Return
     }
 
@@ -199,24 +210,27 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     } Else {
         # File exists, but hash does not match. Delete file. And exit early.
         Remove-Item -Path $patchPath -Force
-        $outputLog += "!Failed: Dell Command Update installation failed. The installation file was not successfully downloaded."
-        Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
+        $outputLog += "!Failed: Dell Command Update installation failed. The hash does not match. File was deleted."
+        Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
         Return
     }
 
     $timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
 
+    # Extract DCU MSI from the executable
     Try {
-        # Extract an MSI from the executable
         & $patchPath @('/passthrough', '/S', '/v/qn', "/b$msiDir")
         $outputLog += "Extracted MSI."
     } Catch {
         # Can't use MSI, exit early
         $outputLog += New-ErrorMessage $_ "MSI extraction from EXE was not successful!"
-        Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
+        Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
         Return
     }
 
+    # TODO: newest version of DCU is probably not necessary, so consider NOT exiting early if this install fails...
+
+    # Install newest version of DCU
     Try {
         $outputLog += "Installing Dell Command Update."
 
@@ -232,18 +246,19 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
             "/L*v"
             "$logDir\$logFile"
         )
+
         Start-Process "msiexec.exe" -ArgumentList $MSIArguments -Wait -NoNewWindow
 
-        $outputLog += "Installation finished."
+        $outputLog += "DCU installation finished."
     } Catch {
         $outputLog += New-ErrorMessage $_ "Error installing DCU!"
-        Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
+        Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
         Return
     }
 
-    # Is it possible we need restarts here? Should we approach this like multiple restarts need to take place?
-    # Needed anyway because of BIOS update so maybe that's ok..
+    # It does not appear that reboot is necessary between DCU installation and BIOS update.. That could change...
 
+    # Update BIOS using DCU
     Try {
         $outputLog += "Using Dell Command Update to update BIOS now."
         $logFile = "DellCommandUpdateBIOSUpgrade_$timestamp.log"
@@ -251,19 +266,24 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
         & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$logFile")
 
         $outputLog += "Done updating BIOS. You should reboot now."
+
+        New-Item $pendingRebootPath -ItemType File -Force | Out-Null
+        $outputLog += 'Created file to mark that machine is pending reboot.'
+
+        $outputLog += '!Warning: BIOS is updated but machine is pending reboot.'
+
+        Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
     } Catch {
         $outputLog += New-ErrorMessage $_ "Could not install BIOS update. DCU-CLI threw an error."
-        Write-Output "protected=0|outputLog=$($outputLog -join '`n')"
-        Move-Item -Path "C:\Temp\$logFile" -Destination "$logDir\$logFile"
-        Return
+        Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
+        # Don't need to exit early unless something else goes under here...
     }
 } Else {
-    $protected = 1
     $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
+    Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
 }
 
+# If exists, move DCU log file
 If (Test-Path -Path "C:\Temp\$logFile") {
     Move-Item -Path "C:\Temp\$logFile" -Destination "$logDir\$logFile"
 }
-
-Write-Output "protected=$protected|outputLog=$($outputLog -join '`n')"
