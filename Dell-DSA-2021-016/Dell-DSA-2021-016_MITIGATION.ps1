@@ -280,7 +280,11 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
 
     # It does not appear that reboot is necessary between DCU installation and BIOS update.. That could change...
     Try {
-        $member = @'[DllImport("user32.dll")]public static extern bool BlockInput(bool fBlockIt);'@
+        # This line freaks out vscode.. but powershell likes it..
+        $member = @"
+            [DllImport("user32.dll")]
+            public static extern bool BlockInput(bool fBlockIt);
+        "@
         $userInput = Add-Type -MemberDefinition $member -Name UserInput -Namespace UserInput -PassThru
         $userInput::BlockInput($True)
     } Catch {
