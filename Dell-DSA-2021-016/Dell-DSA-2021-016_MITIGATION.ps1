@@ -280,11 +280,11 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
 
     # It does not appear that reboot is necessary between DCU installation and BIOS update.. That could change...
     Try {
-        # This line freaks out vscode.. but powershell likes it..
+        # This line freaks out if there is any whitespace... leave the weird indentation.
         $member = @"
-            [DllImport("user32.dll")]
-            public static extern bool BlockInput(bool fBlockIt);
-        "@
+[DllImport("user32.dll")]
+public static extern bool BlockInput(bool fBlockIt);
+"@
         $userInput = Add-Type -MemberDefinition $member -Name UserInput -Namespace UserInput -PassThru
         $userInput::BlockInput($True)
     } Catch {
