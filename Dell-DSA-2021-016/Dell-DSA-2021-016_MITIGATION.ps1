@@ -272,10 +272,10 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     # If a user logged on and unlocked
     If ($userLogonStatus -eq 1) {
         # Call in user messaging function
-        (New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/dkbrookie/PowershellFunctions/master/Function.OK-Popup.ps1') | Invoke-Expression
+        (New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/dkbrookie/PowershellFunctions/master/Function.Notify-ActiveUser.ps1') | Invoke-Expression
 
         # Notify active user that the update is taking place
-        OK-Popup -Message "DO NOT POWER OFF YOUR PC.`nAfter you dismiss this message, your PC will apply a very important update.`nYour mouse and keyboard will stop working during this update.`nYour mouse and keyboard will start working again when the update has finished."
+        Notify-ActiveUser -Message "DO NOT POWER OFF YOUR PC.`nYour PC is applying a very important update.`nYour mouse and keyboard will stop working during this update.`nYour mouse and keyboard will start working again when the update has finished."
     }
 
     # It does not appear that reboot is necessary between DCU installation and BIOS update.. That could change...
