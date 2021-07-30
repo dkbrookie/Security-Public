@@ -169,7 +169,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     $patchDir = "$ltPath\security\DSA-2021-106"
     $patchPath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
     $logDir = "$patchDir\logs"
-    $pendingRebootPath = "$patchDir\bios-update-installed-successfully.txt"
+    $pendingRebootPath = "$patchDir\BIOS-$($minimumSafeBiosVersion -replace '\.', '_')-installed-successfully.txt"
 
     If (!(Test-Path -Path $patchDir)) {
         New-Item -Path $patchDir -ItemType Container -Force | Out-Null
