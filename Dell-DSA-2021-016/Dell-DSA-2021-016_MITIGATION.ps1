@@ -145,12 +145,13 @@ Function New-ErrorMessage (
 
 $minimumSafeBiosVersion = $affectedModels[$modelName]
 
+# For devving notification
 # When model is not in affected models list, either search is targeting wrong machine, or affected models list has a typo
-If (!$affectedModels.Contains($modelName)) {
-    $outputLog += "!Warning: This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-106 vulnerability. Check your search. The model is $modelName, the current BIOS is $currentBiosVersion."
-    Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
-    Return
-}
+# If (!$affectedModels.Contains($modelName)) {
+#     $outputLog += "!Warning: This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-106 vulnerability. Check your search. The model is $modelName, the current BIOS is $currentBiosVersion."
+#     Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
+#     Return
+# }
 
 # Don't know how to compare these models with A0 in the version yet. Powershell doesn't compare these properly, though I assume
 # there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of the affected models.
@@ -159,9 +160,9 @@ If ($minimumSafeBiosVersion -like "*A0*") {
     Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
     Return
 }
-
+# for devving notification
 # If current bios version is smaller than minimum safe BIOS version
-If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
+# If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
 
     $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
@@ -319,10 +320,10 @@ public static extern bool BlockInput(bool fBlockIt);
     }
 
     $userInput::BlockInput($False)
-} Else {
-    $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
-    Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
-}
+# } Else {
+#     $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
+#     Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
+# }
 
 # If exists, move DCU log file
 If (Test-Path -Path "C:\Temp\$logFile") {
