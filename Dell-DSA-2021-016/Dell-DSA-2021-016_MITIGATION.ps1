@@ -145,13 +145,12 @@ Function New-ErrorMessage (
 
 $minimumSafeBiosVersion = $affectedModels[$modelName]
 
-# For devving notification
 # When model is not in affected models list, either search is targeting wrong machine, or affected models list has a typo
-# If (!$affectedModels.Contains($modelName)) {
-#     $outputLog += "!Warning: This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-106 vulnerability. Check your search. The model is $modelName, the current BIOS is $currentBiosVersion."
-#     Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
-#     Return
-# }
+If (!$affectedModels.Contains($modelName)) {
+    $outputLog += "!Warning: This model is not in the affected models list. It is likely that this machine is not vulnerable to the DSA-2021-106 vulnerability. Check your search. The model is $modelName, the current BIOS is $currentBiosVersion."
+    Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
+    Return
+}
 
 # Don't know how to compare these models with A0 in the version yet. Powershell doesn't compare these properly, though I assume
 # there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of the affected models.
@@ -160,9 +159,9 @@ If ($minimumSafeBiosVersion -like "*A0*") {
     Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
     Return
 }
-# for devving notification
+
 # If current bios version is smaller than minimum safe BIOS version
-# If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
+If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
 
     $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
@@ -200,71 +199,70 @@ If ($minimumSafeBiosVersion -like "*A0*") {
 
     <# ------------------------------------------------ Start Remediation ----------------------------------------------------- #>
 
-    # For devving notification
-    # # Download DCU
-    # Try {
-    #     $outputLog += "Downloading Dell Command Update."
-    #     Start-BitsTransfer -Source $url -Destination $patchPath
-    # } Catch {
-    #     # Couldn't download. Exit early.
-    #     $outputLog += New-ErrorMessage $_ "There was an error downloading DCU"
-    #     Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
-    #     Return
-    # }
+    # Download DCU
+    Try {
+        $outputLog += "Downloading Dell Command Update."
+        Start-BitsTransfer -Source $url -Destination $patchPath
+    } Catch {
+        # Couldn't download. Exit early.
+        $outputLog += New-ErrorMessage $_ "There was an error downloading DCU"
+        Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
+        Return
+    }
 
-    # # Newly downloaded, so check hash
-    # $fileHash = (Get-FileHash -Path $patchPath -Algorithm 'SHA1').Hash
+    # Newly downloaded, so check hash
+    $fileHash = (Get-FileHash -Path $patchPath -Algorithm 'SHA1').Hash
 
-    # If ('9490b408992b25e4f3fff0042fdf82cdf7765584' -eq $fileHash) {
-    #     $outputLog += "Dell Command Update downloaded successfully. Hash check succeeded after download."
-    # } Else {
-    #     # File exists, but hash does not match. Delete file. And exit early.
-    #     Remove-Item -Path $patchPath -Force
-    #     $outputLog += "!Failed: Dell Command Update installation failed. The hash does not match. File was deleted."
-    #     Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
-    #     Return
-    # }
+    If ('9490b408992b25e4f3fff0042fdf82cdf7765584' -eq $fileHash) {
+        $outputLog += "Dell Command Update downloaded successfully. Hash check succeeded after download."
+    } Else {
+        # File exists, but hash does not match. Delete file. And exit early.
+        Remove-Item -Path $patchPath -Force
+        $outputLog += "!Failed: Dell Command Update installation failed. The hash does not match. File was deleted."
+        Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
+        Return
+    }
 
-    # $timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
+    $timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
 
-    # # Extract DCU MSI from the executable
-    # Try {
-    #     & $patchPath @('/passthrough', '/S', '/v/qn', "/b$msiDir")
-    #     $outputLog += "Extracted MSI."
-    # } Catch {
-    #     # Can't use MSI, exit early
-    #     $outputLog += New-ErrorMessage $_ "MSI extraction from EXE was not successful!"
-    #     Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
-    #     Return
-    # }
+    # Extract DCU MSI from the executable
+    Try {
+        & $patchPath @('/passthrough', '/S', '/v/qn', "/b$msiDir")
+        $outputLog += "Extracted MSI."
+    } Catch {
+        # Can't use MSI, exit early
+        $outputLog += New-ErrorMessage $_ "MSI extraction from EXE was not successful!"
+        Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
+        Return
+    }
 
-    # # TODO: newest version of DCU is probably not necessary, so consider NOT exiting early if this install fails...
+    # TODO: newest version of DCU is probably not necessary, so consider NOT exiting early if this install fails...
 
-    # # Install newest version of DCU
-    # Try {
-    #     $outputLog += "Installing Dell Command Update."
+    # Install newest version of DCU
+    Try {
+        $outputLog += "Installing Dell Command Update."
 
-    #     # install dell command update
-    #     $file = Get-Item "$patchDir\MSI\DellCommandUpdateApp.msi"
+        # install dell command update
+        $file = Get-Item "$patchDir\MSI\DellCommandUpdateApp.msi"
 
-    #     $logFile = "DellCommandUpdateInstallation-$timestamp.log"
-    #     $MSIArguments = @(
-    #         "/i"
-    #         ('"{0}"' -f $file.fullname)
-    #         "/qn"
-    #         "/norestart"
-    #         "/L*v"
-    #         "$logDir\$logFile"
-    #     )
+        $logFile = "DellCommandUpdateInstallation-$timestamp.log"
+        $MSIArguments = @(
+            "/i"
+            ('"{0}"' -f $file.fullname)
+            "/qn"
+            "/norestart"
+            "/L*v"
+            "$logDir\$logFile"
+        )
 
-    #     Start-Process "msiexec.exe" -ArgumentList $MSIArguments -Wait -NoNewWindow
+        Start-Process "msiexec.exe" -ArgumentList $MSIArguments -Wait -NoNewWindow
 
-    #     $outputLog += "DCU installation finished."
-    # } Catch {
-    #     $outputLog += New-ErrorMessage $_ "Error installing DCU!"
-    #     Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
-    #     Return
-    # }
+        $outputLog += "DCU installation finished."
+    } Catch {
+        $outputLog += New-ErrorMessage $_ "Error installing DCU!"
+        Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
+        Return
+    }
 
     # Call in Get-LogonStatus
     (New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/dkbrookie/PowershellFunctions/master/Function.Get-LogonStatus.ps1') | Invoke-Expression
@@ -277,7 +275,7 @@ If ($minimumSafeBiosVersion -like "*A0*") {
         (New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/dkbrookie/PowershellFunctions/master/Function.Notify-ActiveUser.ps1') | Invoke-Expression
         $outputLog += "notifying user"
         # Notify active user that the update is taking place
-        Notify-ActiveUser -Type Warning -Message "DO NOT POWER OFF YOUR PC.`nAfter you click OK, your PC will apply a very important update.`nYour mouse and keyboard will stop working during this update.`nYour mouse and keyboard will start working again when the update has finished."
+        Notify-ActiveUser -Type Warning -Message "DO NOT POWER OFF YOUR PC.`r`n`r`nYour PC is applying a very important update.`r`nYour mouse and keyboard will stop working during this update.`r`nYour mouse and keyboard will start working again when the update has finished."
     }
 
     # It does not appear that reboot is necessary between DCU installation and BIOS update.. That could change...
@@ -300,15 +298,11 @@ public static extern bool BlockInput(bool fBlockIt);
     Try {
         $outputLog += "Using Dell Command Update to update BIOS now."
         $logFile = "DellCommandUpdateBIOSUpgrade_$timestamp.log"
-        # For devving notification
-        Start-Sleep -Seconds 15
-        # For devving notification
-        # & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$logFile")
+        & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$logFile")
 
         $outputLog += "Done updating BIOS. You should reboot now."
 
-        # For devving notification
-        # New-Item $pendingRebootPath -ItemType File -Force | Out-Null
+        New-Item $pendingRebootPath -ItemType File -Force | Out-Null
         $outputLog += 'Created file to mark that machine is pending reboot.'
 
         $outputLog += '!Warning: BIOS is updated but machine is pending reboot.'
@@ -320,10 +314,10 @@ public static extern bool BlockInput(bool fBlockIt);
     }
 
     $userInput::BlockInput($False)
-# } Else {
-#     $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
-#     Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
-# }
+} Else {
+    $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
+    Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
+}
 
 # If exists, move DCU log file
 If (Test-Path -Path "C:\Temp\$logFile") {
