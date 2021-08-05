@@ -273,7 +273,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     If ($userLogonStatus -eq 1) {
         # Call in user messaging function
         (New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/dkbrookie/PowershellFunctions/master/Function.Notify-ActiveUser.ps1') | Invoke-Expression
-        $outputLog += "notifying user"
+
         # Notify active user that the update is taking place
         Notify-ActiveUser -Type Warning -Message "DO NOT POWER OFF YOUR PC.`r`n`r`nYour PC is applying a very important update.`r`nYour mouse and keyboard will stop working during this update.`r`nYour mouse and keyboard will start working again when the update has finished."
     }
