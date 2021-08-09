@@ -314,6 +314,11 @@ $supportedByCommandUpdate = @(
 $currentBiosVersion = (Get-WmiObject -ClassName Win32_BIOS).SMBIOSBIOSVersion
 $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
 
+# If $excludeFromReboot is $Null, we actually want to default to no reboots, just in case someone forgets to gather it before running this script
+If (($Null -eq $excludeFromReboot)) {
+    $excludeFromReboot = 1
+}
+
 Function New-ErrorMessage (
     [System.Object]$err,
     [string]$msg
@@ -358,7 +363,8 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     $patchDir = "$ltPath\security\DSA-2021-106"
     $patchPath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
     $logDir = "$patchDir\logs"
-    $pendingRebootPath = "$patchDir\BIOS-$($minimumSafeBiosVersion -replace '\.', '_')-installed-successfully.txt"
+    $rebootPendingFilePath = "$patchDir\BIOS-$($minimumSafeBiosVersion -replace '\.', '_')-installed-successfully.txt"
+    $pendingRebootRegPath = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update'
 
     If (!(Test-Path -Path $patchDir)) {
         New-Item -Path $patchDir -ItemType Container -Force | Out-Null
@@ -369,7 +375,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     }
 
     # If the BIOS has already been updated but is pending reboot, we don't want to run the remediation again
-    If (Test-Path -Path $pendingRebootPath) {
+    If (Test-Path -Path $rebootPendingFilePath) {
         $outputLog += "!Warning: This BIOS has already been updated, but the machine is pending reboot. Not updating again."
         Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
         Return
@@ -489,14 +495,24 @@ public static extern bool BlockInput(bool fBlockIt);
         $logFile = "DellCommandUpdateBIOSUpgrade_$timestamp.log"
         & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$logFile")
 
-        $outputLog += "Done updating BIOS. You should reboot now."
+        $outputLog += "Done updating BIOS."
 
-        New-Item $pendingRebootPath -ItemType File -Force | Out-Null
-        $outputLog += 'Created file to mark that machine is pending reboot.'
+        # If userlogonstatus is 1 or 2, a user is logged in and we should not reboot, just mark for pending reboot
+        If (($userLogonStatus -eq 1) -or ($userLogonStatus -eq 2)) {
+            # Create a file to identify to this script that reboot is pending
+            New-Item $rebootPendingFilePath -ItemType File -Force | Out-Null
+            $outputLog += 'Created file to mark that machine is pending reboot.'
 
-        $outputLog += '!Warning: BIOS is updated but machine is pending reboot.'
+            $outputLog += '!Warning: BIOS is updated but machine is pending reboot.'
 
-        Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
+            # Create registry key for labtech to handle future reboot
+            New-Item -Path $pendingRebootRegPath -Name 'RebootRequired' –Force
+            New-ItemProperty -Path "$pendingRebootRegPath\RebootRequired" -Name 'Labtech' -Value 1
+            Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
+        } ElseIf (!$excludeFromReboot) {
+            # As long as user is not logged in, and machine is not excluded from reboots, good to go ahead and reboot
+            Restart-Computer
+        }
     } Catch {
         $outputLog += New-ErrorMessage $_ "Could not install BIOS update. DCU-CLI threw an error."
         Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
