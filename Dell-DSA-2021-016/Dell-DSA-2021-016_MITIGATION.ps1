@@ -331,9 +331,20 @@ If (!$affectedModels.Contains($modelName)) {
 }
 
 # Don't know how to compare these models with A0 in the version yet. Powershell doesn't compare these properly, though I assume
-# there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of the affected models.
+# there's some way to handle it. Not putting energy into it yet, because we don't currently manage any of these models.
 If ($minimumSafeBiosVersion -like "*A0*") {
-    $outputLog += "!Failed: Exiting Script. This model is not currently supported by the script. This machine needs to be updated manually, or the script needs to be updated to support it."
+    $outputLog += "!Failed: Exiting Script. This model is not currently supported by the script. This machine needs to be updated MANUALLY, OR the script needs to be updated to support it."
+    Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
+    Return
+}
+
+$modelName -match '[0-9][0-9][0-9][0-9]'
+$modelNumber = $matches[0]
+
+# Some affected models are not supported by Dell Command Update
+# If DCU does not support the model, there is no sense continuing, b/c DCU is mandatory for this to work
+If (!$supportedByCommandUpdate.Contains($modelNumber)) {
+    $outputLog += "!Failed: This machine IS an affected model, but it is not supported by Dell Command Update and must be updated MANUALLY."
     Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
     Return
 }
