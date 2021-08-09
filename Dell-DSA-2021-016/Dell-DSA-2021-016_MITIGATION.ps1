@@ -313,6 +313,8 @@ $supportedByCommandUpdate = @(
 
 $currentBiosVersion = (Get-WmiObject -ClassName Win32_BIOS).SMBIOSBIOSVersion
 $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
+$timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
+$logFile = "DellCommandUpdateBIOSUpgrade_$timestamp.log"
 
 # If $excludeFromReboot is $Null, we actually want to default to no reboots, just in case someone forgets to gather it before running this script
 If (($Null -eq $excludeFromReboot)) {
@@ -418,8 +420,6 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
         Return
     }
 
-    $timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
-
     # Extract DCU MSI from the executable
     Try {
         & $patchPath @('/passthrough', '/S', '/v/qn', "/b$msiDir")
@@ -492,7 +492,6 @@ public static extern bool BlockInput(bool fBlockIt);
     # Update BIOS using DCU
     Try {
         $outputLog += "Using Dell Command Update to update BIOS now."
-        $logFile = "DellCommandUpdateBIOSUpgrade_$timestamp.log"
         & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$logFile")
 
         $outputLog += "Done updating BIOS."
