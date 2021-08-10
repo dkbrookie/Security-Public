@@ -1,4 +1,4 @@
-# Affected models and minimum BIOS versions to be considered safe. Anything lower is vulnerable.
+﻿# Affected models and minimum BIOS versions to be considered safe. Anything lower is vulnerable.
 $affectedModels = @{
     "Alienware m15 R6" = "1.3.3";
     "ChengMing 3990" = "1.4.1";
