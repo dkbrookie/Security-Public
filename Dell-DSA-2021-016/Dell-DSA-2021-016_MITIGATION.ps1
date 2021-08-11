@@ -377,7 +377,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     }
 
     # If the BIOS has already been updated but is pending reboot, we don't want to run the remediation again
-    $rebootRegValue = (Get-ItemProperty -Path "$pendingRebootRegPath\RebootRequired" -Name 'Labtech').Labtech
+    $rebootRegValue = (Get-ItemProperty -Path "$pendingRebootRegPath\RebootRequired" -Name 'Labtech' -EA 0).Labtech
     If (Test-Path -Path $rebootPendingFilePath -and ($rebootRegValue -eq 1)) {
         $outputLog += "!Warning: This BIOS has already been updated, but the machine is pending reboot. Not updating again."
         Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
@@ -439,7 +439,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
         $outputLog += "Installing Dell Command Update."
 
         # install dell command update
-        $file = Get-Item "$patchDir\MSI\DellCommandUpdateApp.msi"
+        $file = Get-Item "$patchDir\MSI\DellCommandUpdateApp.msi" -ErrorAction Stop
 
         $logFile = "DellCommandUpdateInstallation-$timestamp.log"
         $MSIArguments = @(
@@ -501,7 +501,7 @@ public static extern bool BlockInput(bool fBlockIt);
         If (($userLogonStatus -eq 1) -or ($userLogonStatus -eq 2)) {
             # Create a file to identify to this script that reboot is pending
             New-Item $rebootPendingFilePath -ItemType File -Force | Out-Null
-            $outputLog += 'Created file to mark that machine is pending reboot.'
+            $outputLog += 'User is logged in. Created file to mark that machine is pending reboot.'
 
             $outputLog += '!Warning: BIOS is updated but machine is pending reboot.'
 
@@ -511,7 +511,10 @@ public static extern bool BlockInput(bool fBlockIt);
             Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
         } ElseIf (!$excludeFromReboot) {
             # As long as user is not logged in, and machine is not excluded from reboots, good to go ahead and reboot
+            $outputLog += "No logged in user and not excluded from reboots. Rebooting."
             Restart-Computer
+        } Else {
+            $outputLog += "Excluded from reboot."
         }
     } Catch {
         $outputLog += New-ErrorMessage $_ "Could not install BIOS update. DCU-CLI threw an error."
