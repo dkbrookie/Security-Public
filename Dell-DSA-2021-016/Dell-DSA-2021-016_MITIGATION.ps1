@@ -506,7 +506,7 @@ public static extern bool BlockInput(bool fBlockIt);
             $outputLog += '!Warning: BIOS is updated but machine is pending reboot.'
 
             # Create registry key for automate to handle future reboot
-            New-Item -Path $pendingRebootRegPath -Name 'RebootRequired' –Force
+            New-Item -Path $pendingRebootRegPath -Name 'RebootRequired' –Force | Out-Null
             New-ItemProperty -Path "$pendingRebootRegPath\RebootRequired" -Name 'Labtech' -Value 1
             Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
         } ElseIf (!$excludeFromReboot) {
