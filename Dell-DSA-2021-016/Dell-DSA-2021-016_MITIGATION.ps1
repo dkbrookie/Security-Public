@@ -458,7 +458,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
         $outputLog += "Installing Dell Command Update."
 
         # install dell command update
-        $file = Get-Item "$patchDir\MSI\DellCommandUpdateApp.msi" -ErrorAction Stop
+        $file = Get-Item "$patchDir\DellCommandUpdateApp.msi" -ErrorAction Stop
 
         $MSIArguments = @(
             "/i"
