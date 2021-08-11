@@ -375,7 +375,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
     $ltPath = "$ENV:windir\LTSvc"
     $patchDir = "$ltPath\security\DSA-2021-106"
-    $patchPath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
+    $dcuExePath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
     $logDir = "$patchDir\logs"
     $timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
     $dcuInstallerLogFile = "DellCommandUpdateInstallation-$timestamp.log"
@@ -418,7 +418,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     # Download DCU
     Try {
         $outputLog += "Downloading Dell Command Update."
-        Start-BitsTransfer -Source $url -Destination $patchPath
+        Start-BitsTransfer -Source $url -Destination $dcuExePath
     } Catch {
         # Couldn't download. Exit early.
         $outputLog += New-ErrorMessage $_ "There was an error downloading DCU"
@@ -427,13 +427,13 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     }
 
     # Newly downloaded, so check hash
-    $fileHash = (Get-FileHash -Path $patchPath -Algorithm 'SHA1').Hash
+    $fileHash = (Get-FileHash -Path $dcuExePath -Algorithm 'SHA1').Hash
 
     If ('9490b408992b25e4f3fff0042fdf82cdf7765584' -eq $fileHash) {
         $outputLog += "Dell Command Update downloaded successfully. Hash check succeeded after download."
     } Else {
         # File exists, but hash does not match. Delete file. And exit early.
-        Remove-Item -Path $patchPath -Force
+        Remove-Item -Path $dcuExePath -Force
         $outputLog += "!Failed: Dell Command Update installation failed. The hash does not match. File was deleted."
         Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
         Return
@@ -441,7 +441,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
 
     # Extract DCU MSI from the executable
     Try {
-        & $patchPath @('/passthrough', '/S', '/v/qn', "/b$msiDir")
+        & $dcuExePath @('/passthrough', '/S', '/v/qn', "/b$msiDir")
         $outputLog += "Extracted MSI."
     } Catch {
         # Can't use MSI, exit early
