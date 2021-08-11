@@ -313,8 +313,6 @@ $supportedByCommandUpdate = @(
 
 $currentBiosVersion = (Get-WmiObject -ClassName Win32_BIOS).SMBIOSBIOSVersion
 $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
-$timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
-$logFile = "DellCommandUpdateBIOSUpgrade_$timestamp.log"
 
 # If $excludeFromReboot is $Null, we actually want to default to no reboots, just in case someone forgets to gather it before running this script
 If (($Null -eq $excludeFromReboot)) {
@@ -367,6 +365,9 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     $logDir = "$patchDir\logs"
     $rebootPendingFilePath = "$patchDir\BIOS-$($minimumSafeBiosVersion -replace '\.', '_')-installed-successfully.txt"
     $pendingRebootRegPath = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update'
+    $timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
+    $dcuInstallerLogFile = "DellCommandUpdateInstallation-$timestamp.log"
+    $biosUpdateLogFile = "DellCommandUpdateBIOSUpgrade_$timestamp.log"
 
     If (!(Test-Path -Path $patchDir)) {
         New-Item -Path $patchDir -ItemType Container -Force | Out-Null
@@ -441,14 +442,13 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
         # install dell command update
         $file = Get-Item "$patchDir\MSI\DellCommandUpdateApp.msi" -ErrorAction Stop
 
-        $logFile = "DellCommandUpdateInstallation-$timestamp.log"
         $MSIArguments = @(
             "/i"
             ('"{0}"' -f $file.fullname)
             "/qn"
             "/norestart"
             "/L*v"
-            "$logDir\$logFile"
+            "$logDir\$dcuInstallerLogFile"
         )
 
         Start-Process "msiexec.exe" -ArgumentList $MSIArguments -Wait -NoNewWindow
@@ -493,7 +493,7 @@ public static extern bool BlockInput(bool fBlockIt);
     # Update BIOS using DCU
     Try {
         $outputLog += "Using Dell Command Update to update BIOS now."
-        & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$logFile")
+        & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$biosUpdateLogFile")
 
         $outputLog += "Done updating BIOS."
 
@@ -528,6 +528,6 @@ public static extern bool BlockInput(bool fBlockIt);
 }
 
 # If exists, move DCU log file
-If (Test-Path -Path "C:\Temp\$logFile") {
-    Move-Item -Path "C:\Temp\$logFile" -Destination "$logDir\$logFile"
+If (Test-Path -Path "C:\Temp\$biosUpdateLogFile") {
+    Move-Item -Path "C:\Temp\$biosUpdateLogFile" -Destination "$logDir\$biosUpdateLogFile"
 }
