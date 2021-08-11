@@ -442,7 +442,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
 
     # Extract DCU MSI from the executable
     Try {
-        & $dcuExePath @('/passthrough', '/S', '/v/qn', "/b$msiDir")
+        & $dcuExePath @('/passthrough', '/S', '/v/qn', "/b$patchDir")
         $outputLog += "Extracted MSI."
     } Catch {
         # Can't use MSI, exit early
