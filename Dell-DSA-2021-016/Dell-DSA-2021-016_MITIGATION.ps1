@@ -310,6 +310,7 @@ $supportedByCommandUpdate = @(
 )
 
 [array]$outputLog = @()
+$pendingReboot = 0
 
 $currentBiosVersion = (Get-WmiObject -ClassName Win32_BIOS).SMBIOSBIOSVersion
 $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
@@ -354,20 +355,40 @@ If (!$supportedByCommandUpdate.Contains($modelNumber)) {
     Return
 }
 
+# Find out if registry has 'labtech' pending reboot flag set
+$pendingRebootRegPath = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update'
+$rebootRegValue = (Get-ItemProperty -Path "$pendingRebootRegPath\RebootRequired" -Name 'Labtech' -EA 0).Labtech
+$pendingRebootPerReg = $rebootRegValue -eq 1
+
+# Find out if "installed-successfully" file has been created. This would mean the bios update has been
+# attempted in the past and seemingly was successful
+$rebootPendingFilePath = "$patchDir\BIOS-$($minimumSafeBiosVersion -replace '\.', '_')-installed-successfully.txt"
+$pendingRebootPerFile = Test-Path -Path $rebootPendingFilePath
+
+# If both are true, the BIOS has been updated, but the machine is only pending reboot
+If ($pendingRebootPerReg -and $pendingRebootPerFile) {
+    $pendingReboot = 1
+}
+
 # If current bios version is smaller than minimum safe BIOS version
 If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
-    $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
-
     $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
     $ltPath = "$ENV:windir\LTSvc"
     $patchDir = "$ltPath\security\DSA-2021-106"
     $patchPath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
     $logDir = "$patchDir\logs"
-    $rebootPendingFilePath = "$patchDir\BIOS-$($minimumSafeBiosVersion -replace '\.', '_')-installed-successfully.txt"
-    $pendingRebootRegPath = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update'
     $timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
     $dcuInstallerLogFile = "DellCommandUpdateInstallation-$timestamp.log"
     $biosUpdateLogFile = "DellCommandUpdateBIOSUpgrade_$timestamp.log"
+
+    $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
+
+    # If the BIOS has already been updated but is pending reboot, we don't want to run the remediation again
+    If ($pendingReboot) {
+        $outputLog += "!Warning: This BIOS has already been updated, but the machine is pending reboot. Not updating again."
+        Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
+        Return
+    }
 
     If (!(Test-Path -Path $patchDir)) {
         New-Item -Path $patchDir -ItemType Container -Force | Out-Null
@@ -375,14 +396,6 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
 
     If (!(Test-Path -Path $logDir)) {
         New-Item -Path $logDir -ItemType Container -Force | Out-Null
-    }
-
-    # If the BIOS has already been updated but is pending reboot, we don't want to run the remediation again
-    $rebootRegValue = (Get-ItemProperty -Path "$pendingRebootRegPath\RebootRequired" -Name 'Labtech' -EA 0).Labtech
-    If ((Test-Path -Path $rebootPendingFilePath) -and ($rebootRegValue -eq 1)) {
-        $outputLog += "!Warning: This BIOS has already been updated, but the machine is pending reboot. Not updating again."
-        Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
-        Return
     }
 
     $battery = Get-WmiObject -Class Win32_Battery | Select-Object -First 1
@@ -523,6 +536,11 @@ public static extern bool BlockInput(bool fBlockIt);
 
     $userInput::BlockInput($False)
 } Else {
+    If ($pendingRebootPerFile -and !($pendingRebootPerReg)) {
+        Remove-Item $rebootPendingFilePath
+        $outputLog += "Machine is not pending reboot but reboot pending file was found. Removed."
+    }
+
     $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
     Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
 }
