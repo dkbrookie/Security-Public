@@ -388,9 +388,7 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
         $outputLog += "!Warning: This BIOS has already been updated, but the machine is pending reboot. Not updating again."
         Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
         Return
-    }
-
-    If ($pendingRebootPerFile) {
+    } ElseIf ($pendingRebootPerFile) {
         $outputLog += "!Warning: It looks like this update has occurred in the past, seemingly successfully, but the reboot flag is missing from registry, but the machine is still not up to date? Not trying again. You should investigate this. Maybe Reboot reg keys are disappearing..."
         Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
         Return
