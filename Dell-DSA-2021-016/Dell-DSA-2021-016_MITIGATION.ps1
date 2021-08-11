@@ -377,7 +377,8 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
     }
 
     # If the BIOS has already been updated but is pending reboot, we don't want to run the remediation again
-    If (Test-Path -Path $rebootPendingFilePath) {
+    $rebootRegValue = (Get-ItemProperty -Path "$pendingRebootRegPath\RebootRequired" -Name 'Labtech').Labtech
+    If (Test-Path -Path $rebootPendingFilePath -and ($rebootRegValue -eq 1)) {
         $outputLog += "!Warning: This BIOS has already been updated, but the machine is pending reboot. Not updating again."
         Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
         Return
