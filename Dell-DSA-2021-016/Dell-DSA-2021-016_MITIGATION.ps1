@@ -311,9 +311,23 @@ $supportedByCommandUpdate = @(
 
 [array]$outputLog = @()
 $pendingReboot = 0
+$url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
+$ltPath = "$ENV:windir\LTSvc"
+$patchDir = "$ltPath\security\DSA-2021-106"
+$dcuExePath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
+$logDir = "$patchDir\logs"
+
+$timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
+
+$dcuInstallerLogFile = "DellCommandUpdateInstallation-$timestamp.log"
+$biosUpdateLogFile = "DellCommandUpdateBIOSUpgrade_$timestamp.log"
+$pendingRebootRegPath = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update'
 
 $currentBiosVersion = (Get-WmiObject -ClassName Win32_BIOS).SMBIOSBIOSVersion
 $modelName = (Get-WmiObject -ClassName Win32_ComputerSystem).Model
+$minimumSafeBiosVersion = $affectedModels[$modelName]
+
+$rebootPendingFilePath = "$patchDir\BIOS-$($minimumSafeBiosVersion -replace '\.', '_')-installed-successfully.txt"
 
 # If $excludeFromReboot is $Null, we actually want to default to no reboots, just in case someone forgets to gather it before running this script
 If (($Null -eq $excludeFromReboot)) {
@@ -326,8 +340,6 @@ Function New-ErrorMessage (
 ) {
     Return "!Failed: $msg. Error Output: $err.Exception.ItemName - $err.Exception.Message"
 }
-
-$minimumSafeBiosVersion = $affectedModels[$modelName]
 
 # When model is not in affected models list, either search is targeting wrong machine, or affected models list has a typo
 If (!$affectedModels.Contains($modelName)) {
@@ -356,13 +368,11 @@ If (!$supportedByCommandUpdate.Contains($modelNumber)) {
 }
 
 # Find out if registry has 'labtech' pending reboot flag set
-$pendingRebootRegPath = 'HKLM:\Software\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update'
 $rebootRegValue = (Get-ItemProperty -Path "$pendingRebootRegPath\RebootRequired" -Name 'Labtech' -EA 0).Labtech
 $pendingRebootPerReg = $rebootRegValue -eq 1
 
 # Find out if "installed-successfully" file has been created. This would mean the bios update has been
 # attempted in the past and seemingly was successful
-$rebootPendingFilePath = "$patchDir\BIOS-$($minimumSafeBiosVersion -replace '\.', '_')-installed-successfully.txt"
 $pendingRebootPerFile = Test-Path -Path $rebootPendingFilePath
 
 # If both are true, the BIOS has been updated, but the machine is only pending reboot
@@ -372,15 +382,6 @@ If ($pendingRebootPerReg -and $pendingRebootPerFile) {
 
 # If current bios version is smaller than minimum safe BIOS version
 If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
-    $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
-    $ltPath = "$ENV:windir\LTSvc"
-    $patchDir = "$ltPath\security\DSA-2021-106"
-    $dcuExePath = "$patchDir\DellCommandUpdate_4.2.1.EXE"
-    $logDir = "$patchDir\logs"
-    $timestamp = Get-Date -Format 'MMddyy-hh-mm-ss'
-    $dcuInstallerLogFile = "DellCommandUpdateInstallation-$timestamp.log"
-    $biosUpdateLogFile = "DellCommandUpdateBIOSUpgrade_$timestamp.log"
-
     $outputLog += "This machine is an affected model and doesn't meet the minimum BIOS version requirement. BIOS Version: $currentBiosVersion. BIOS version needed: $minimumSafeBiosVersion or higher. Attempting to remediate."
 
     # If the BIOS has already been updated but is pending reboot, we don't want to run the remediation again
