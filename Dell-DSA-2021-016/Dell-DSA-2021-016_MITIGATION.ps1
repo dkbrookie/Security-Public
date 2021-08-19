@@ -442,7 +442,13 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
 
     # Extract DCU MSI from the executable
     Try {
-        & $dcuExePath @('/passthrough', '/S', '/v/qn', "/b$patchDir")
+        $exeArguments = @(
+            '/passthrough',
+            '/S',
+            '/v/qn',
+            "/b$patchDir"
+        )
+        Start-Process $dcuExePath -ArgumentList $exeArguments  -Wait -NoNewWindow
         $outputLog += "Extracted MSI."
     } Catch {
         # Can't use MSI, exit early
@@ -461,11 +467,11 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
         $file = Get-Item "$patchDir\DellCommandUpdateApp.msi" -ErrorAction Stop
 
         $MSIArguments = @(
-            "/i"
-            ('"{0}"' -f $file.fullname)
-            "/qn"
-            "/norestart"
-            "/L*v"
+            "/i",
+            ('"{0}"' -f $file.fullname),
+            "/qn",
+            "/norestart",
+            "/L*v",
             "$logDir\$dcuInstallerLogFile"
         )
 
