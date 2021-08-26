@@ -507,10 +507,10 @@ If ($currentBiosVersion -lt $minimumSafeBiosVersion) {
 public static extern bool BlockInput(bool fBlockIt);
 "@
         $userInput = Add-Type -MemberDefinition $member -Name UserInput -Namespace UserInput -PassThru
-        $userInput::BlockInput($True)
+        $userInput::BlockInput($True) | Out-Null
     } Catch {
         $outputLog += New-ErrorMessage $_ "Could not disable user input. Not proceeding with BIOS update."
-        $userInput::BlockInput($False)
+        $userInput::BlockInput($False) | Out-Null
         Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
         Return
     }
@@ -521,6 +521,7 @@ public static extern bool BlockInput(bool fBlockIt);
         & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$biosUpdateLogFile")
 
         $outputLog += "Done updating BIOS."
+        $userInput::BlockInput($False) | Out-Null
 
         # If userlogonstatus is 1 or 2, a user is logged in and we should not reboot, just mark for pending reboot
         If (($userLogonStatus -eq 1) -or ($userLogonStatus -eq 2)) {
@@ -542,18 +543,17 @@ public static extern bool BlockInput(bool fBlockIt);
             $outputLog += "Excluded from reboot."
         }
     } Catch {
+        $userInput::BlockInput($False) | Out-Null
         $outputLog += New-ErrorMessage $_ "Could not install BIOS update. DCU-CLI threw an error."
         Write-Output "protected=0|pendingReboot=0|outputLog=$($outputLog -join '`n')"
     }
-
-    $userInput::BlockInput($False)
 } Else {
     If ($pendingRebootPerFile -and !($pendingRebootPerReg)) {
         Remove-Item $rebootPendingFilePath
         $outputLog += "Machine is not pending reboot but reboot pending file was found. Removed."
     }
 
-    $outputLog += "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed."
+    $outputLog = "!Success: This model is in the affected models list, but it meets the minimum BIOS version requirement. This machine is not vulnerable and no update is needed." + $outputLog
     Write-Output "protected=1|pendingReboot=0|outputLog=$($outputLog -join '`n')"
 }
 
