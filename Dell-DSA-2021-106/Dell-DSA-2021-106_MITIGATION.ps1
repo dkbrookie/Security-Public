@@ -532,7 +532,7 @@ public static extern bool BlockInput(bool fBlockIt);
 
             # Create registry key for automate to handle future reboot
             New-Item -Path $pendingRebootRegPath -Name 'RebootRequired' –Force | Out-Null
-            New-ItemProperty -Path "$pendingRebootRegPath\RebootRequired" -Name 'Labtech' -Value 1
+            New-ItemProperty -Path "$pendingRebootRegPath\RebootRequired" -Name 'Labtech' -Value 1 -Force | Out-Null
             Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
         } ElseIf (!$excludeFromReboot) {
             # As long as user is not logged in, and machine is not excluded from reboots, good to go ahead and reboot
