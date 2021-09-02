@@ -495,7 +495,11 @@ public static extern bool BlockInput(bool fBlockIt);
 
         $dcuArguments = @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$logFile")
 
-        Start-Process "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" -Wait -NoNewWindow -ArgumentList $dcuArguments
+        $dcuProcess = Start-Process "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" -ArgumentList $dcuArguments -Wait -NoNewWindow -PassThru
+
+        If ($dcuProcess.ExitCode -ne 0) {
+            Throw "DCU experienced an unknown error. There does not appear to be a method to obtain the error message from DCU in powershell, so this will require manual attention. Check the logs at $logDir\$logFile"
+        }
 
         $outputLog += "Done updating BIOS."
 
