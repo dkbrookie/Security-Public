@@ -492,7 +492,10 @@ public static extern bool BlockInput(bool fBlockIt);
     # Update BIOS using DCU
     Try {
         $outputLog += "Using Dell Command Update to update BIOS now."
-        & "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$logFile")
+
+        $dcuArguments = @('/applyUpdates', '-updateType=bios', '-autoSuspendBitLocker=enable', '-silent', '-reboot=disable', "-outputLog=C:\Temp\$logFile")
+
+        Start-Process "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" -Wait -NoNewWindow -ArgumentList $dcuArguments
 
         $outputLog += "Done updating BIOS."
 
