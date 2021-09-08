@@ -501,13 +501,13 @@ public static extern bool BlockInput(bool fBlockIt);
             Throw "DCU experienced an unknown error. There does not appear to be a method to obtain the error message from DCU in powershell, so this will require manual attention. Check the logs at $logDir\$logFile"
         }
 
-        $outputLog += "Done updating BIOS."
+        $outputLog += "Updated BIOS successfully."
 
         # If userlogonstatus is 1 or 2, a user is logged in and we should not reboot, just mark for pending reboot
         If (($userLogonStatus -eq 1) -or ($userLogonStatus -eq 2)) {
             # Create a file to identify to this script that reboot is pending
             New-Item $rebootPendingFilePath -ItemType File -Force | Out-Null
-            $outputLog += 'Created file to mark that machine is pending reboot.'
+            $outputLog += 'User is logged in. Created file to mark that machine is pending reboot. Also setting registry flags to mark pending reboot.'
 
             $outputLog += '!Warning: BIOS is updated but machine is pending reboot.'
 
@@ -517,6 +517,8 @@ public static extern bool BlockInput(bool fBlockIt);
             Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
         } ElseIf (!$excludeFromReboot) {
             # As long as user is not logged in, and machine is not excluded from reboots, good to go ahead and reboot
+            $outputLog += "No one is logged in and machine is not excluded from reboots. Rebooting now."
+            Write-Output "protected=0|pendingReboot=1|outputLog=$($outputLog -join '`n')"
             Restart-Computer
         }
     } Catch {
