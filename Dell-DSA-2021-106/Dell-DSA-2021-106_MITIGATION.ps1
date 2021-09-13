@@ -309,7 +309,7 @@ $supportedByCommandUpdate = @(
     "9700"
 )
 
-[array]$outputLog = @()
+$outputLog = @()
 $pendingReboot = 0
 $url = 'https://dl.dell.com/FOLDER07414802M/1/Dell-Command-Update-Application-for-Windows-10_W1RMW_WIN_4.2.1_A00.EXE'
 $ltPath = "$ENV:windir\LTSvc"
