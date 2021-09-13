@@ -523,6 +523,9 @@ public static extern bool BlockInput(bool fBlockIt);
 
         $dcuProcess = Start-Process "$Env:ProgramFiles\Dell\CommandUpdate\dcu-cli.exe" -ArgumentList $dcuArguments -Wait -NoNewWindow -PassThru
 
+        # Stop blocking user input as soon as bios update process is complete
+        $userInput::BlockInput($False) | Out-Null
+
         If ($dcuProcess.ExitCode -ne 0) {
             Throw "DCU experienced an unknown error. There does not appear to be a method to obtain the error message from DCU in powershell, so this will require manual attention. Check the logs at $logDir\$logFile"
         }
